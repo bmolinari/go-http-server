@@ -78,40 +78,64 @@ func handleConnection(conn net.Conn) {
 		}
 	}
 
-	fmt.Println("Headers: ")
+	fmt.Println("-Headers-")
 	for key, value := range headers {
 		fmt.Printf("%s: %s\n", key, value)
 	}
 
-	var response string
-	response = "HTTP/1.1 200 OK\r\n" +
+	if method == "GET" {
+		switch {
+		case path == "/hello":
+			handleHello(conn)
+		case path == "/goodbye":
+			handleGoodbye(conn)
+		default:
+			handleNotFound(conn)
+		}
+	} else {
+		handleMethodNotAllowed(conn)
+	}
+
+}
+
+func handleHello(conn net.Conn) {
+	response := "HTTP/1.1 200 OK\r\n" +
 		"Content-Type: text/plain\r\n" +
 		"Content-Length: 13\r\n" +
 		"\r\n" +
 		"Hello, World!"
-	// switch {
-	//
-	// case method == "GET" && path == "/hello":
-	// 	response = "HTTP/1.1 200 OK\r\n" +
-	// 		"Content-Type: text/plain\r\n" +
-	// 		"Content-Length: 13\r\n" +
-	// 		"\r\n" +
-	// 		"Hello, World!"
-	// case method == "GET" && path == "/goodbye":
-	// 	response = "HTTP/1.1 200 OK\r\n" +
-	// 		"Content-Type: text/plain\r\n" +
-	// 		"Content-Length: 13\r\n" +
-	// 		"\r\n" +
-	// 		"Goodbye!"
-	// default:
-	// 	response = "HTTP/1.1 404 Not Found\r\n" +
-	// 		"Content-Type: text/plain\r\n" +
-	// 		"Content-Length: 13\r\n" +
-	// 		"\r\n" +
-	// 		"404 Not Found"
-	// }
-	//
-	_, err = conn.Write([]byte(response))
+	writeResponse(conn, response)
+}
+
+func handleGoodbye(conn net.Conn) {
+	response := "HTTP/1.1 200 OK\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: 8\r\n" +
+		"\r\n" +
+		"Goodbye!"
+	writeResponse(conn, response)
+}
+
+func handleNotFound(conn net.Conn) {
+	response := "HTTP/1.1 404 Not Found\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: 14\r\n" +
+		"\r\n" +
+		"404 Not Found"
+	writeResponse(conn, response)
+}
+
+func handleMethodNotAllowed(conn net.Conn) {
+	response := "HTTP/1.1 405 Method Not Allowed\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: 24\r\n" +
+		"\r\n" +
+		"405 Not Found"
+	writeResponse(conn, response)
+}
+
+func writeResponse(conn net.Conn, response string) {
+	_, err := conn.Write([]byte(response))
 	if err != nil {
 		log.Println("Failed to write response: ", err)
 		return
