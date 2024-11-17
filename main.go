@@ -128,9 +128,9 @@ func handleNotFound(conn net.Conn) {
 func handleMethodNotAllowed(conn net.Conn) {
 	response := "HTTP/1.1 405 Method Not Allowed\r\n" +
 		"Content-Type: text/plain\r\n" +
-		"Content-Length: 24\r\n" +
+		"Content-Length: 22\r\n" +
 		"\r\n" +
-		"405 Not Found"
+		"405 Method Not Allowed"
 	writeResponse(conn, response)
 }
 
