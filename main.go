@@ -83,6 +83,34 @@ func handleConnection(conn net.Conn) {
 		fmt.Printf("%s: %s\n", key, value)
 	}
 
+	if method == "POST" {
+		contentLength := 0
+		if cl, ok := headers["Content-Length"]; ok {
+			fmt.Sscanf(cl, "%d", &contentLength)
+		} else {
+			handleBadRequest(conn, "Missing Content-Length header")
+			return
+		}
+
+		body := make([]byte, contentLength)
+		_, err = reader.Read(body)
+		if err != nil {
+			log.Println("Failed to read request body: ", err)
+			handleInternalServerError(conn)
+			return
+		}
+		fmt.Println("Body: ", string(body))
+
+		response := "HTTP/1.1 200 OK \r\n" +
+			"Content-Type: text/plain\r\n" +
+			fmt.Sprintf("Content-Length: %d\r\n", len(body)) +
+			"\r\n" +
+			string(body)
+
+		writeResponse(conn, response)
+		return
+	}
+
 	if method == "GET" {
 		switch {
 		case path == "/hello":
@@ -128,7 +156,7 @@ func handleNotFound(conn net.Conn) {
 func handleMethodNotAllowed(conn net.Conn) {
 	response := "HTTP/1.1 405 Method Not Allowed\r\n" +
 		"Content-Type: text/plain\r\n" +
-		"Content-Length: 22\r\n" +
+		"Content-Length: 24\r\n" +
 		"\r\n" +
 		"405 Method Not Allowed"
 	writeResponse(conn, response)
@@ -140,4 +168,22 @@ func writeResponse(conn net.Conn, response string) {
 		log.Println("Failed to write response: ", err)
 		return
 	}
+}
+
+func handleBadRequest(conn net.Conn, message string) {
+	response := "HTTP/1.1 400 Bad Request\r\n" +
+		"Content-Type: text/plain\r\n" +
+		fmt.Sprintf("Content-Length: %d\r\n", len(message)) +
+		"\r\n" +
+		message
+	writeResponse(conn, response)
+}
+
+func handleInternalServerError(conn net.Conn) {
+	response := "HTTP/1.1 500 Internal Server Error\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: 21\r\n" +
+		"\r\n" +
+		"Internal Server Error"
+	writeResponse(conn, response)
 }
