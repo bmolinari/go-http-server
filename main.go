@@ -105,9 +105,11 @@ func handleConnection(conn net.Conn) {
 			handleNotFound(conn)
 		}
 	} else if method == "POST" {
-		contentType, ok := headers["Content-Type"]
-		if ok && strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		contentType := headers["Content-Type"]
+		if contentType == "application/x-www-form-urlencoded" {
 			handleFormDataPost(conn, body)
+		} else if contentType == "application/json" {
+			handleJsonPost(conn, body)
 		} else {
 			handleUnsupportedMediaType(conn)
 		}
@@ -143,7 +145,7 @@ func handleFormDataPost(conn net.Conn, body []byte) {
 		return
 	}
 
-	fmt.Println("Parsed Form Data: ")
+	fmt.Println("-Form Data-")
 	for key, values := range formData {
 		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
 	}
@@ -155,6 +157,20 @@ func handleFormDataPost(conn net.Conn, body []byte) {
 		"Form Data Received Sucessfully!"
 
 	response = fmt.Sprintf(response, len("Form Data Receieved Sucessfully!"))
+	writeResponse(conn, response)
+}
+
+func handleJsonPost(conn net.Conn, body []byte) {
+	fmt.Println("-JSON Body")
+	fmt.Println(string(body))
+
+	response := "HTTP/1.1 200 OK\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: %d\r\n" +
+		"\r\n" +
+		"JSON Data Received Sucessfully!"
+
+	response = fmt.Sprintf(response, len("JSON Data Receieved Sucessfully!"))
 	writeResponse(conn, response)
 }
 
@@ -185,11 +201,7 @@ func handleMethodNotAllowed(conn net.Conn) {
 }
 
 func handleBadRequest(conn net.Conn, message string) {
-	response := "HTTP/1.1 400 Bad Request\r\n" +
-		"Content-Type: text/plain\r\n" +
-		fmt.Sprintf("Content-Length: %d\r\n", len(message)) +
-		"\r\n" +
-		message
+	response := fmt.Sprintf("HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(message), message)
 	writeResponse(conn, response)
 }
 
