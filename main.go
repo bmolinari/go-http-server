@@ -83,33 +83,17 @@ func handleConnection(conn net.Conn) {
 		fmt.Printf("%s: %s\n", key, value)
 	}
 
-	if method == "POST" {
-		contentLength := 0
-		if cl, ok := headers["Content-Length"]; ok {
-			fmt.Sscanf(cl, "%d", &contentLength)
-		} else {
-			handleBadRequest(conn, "Missing Content-Length header")
-			return
-		}
-
-		body := make([]byte, contentLength)
-		_, err = reader.Read(body)
+	var body []byte
+	if cl, ok := headers["Content-Length"]; ok {
+		var contentLength int
+		fmt.Sscanf(cl, "%d", &contentLength)
+		body = make([]byte, contentLength)
+		_, err := reader.Read(body)
 		if err != nil {
-			log.Println("Failed to read request body: ", err)
-			handleInternalServerError(conn)
-			return
+			log.Println("Failed to read body: ", err)
 		}
-		fmt.Println("Body: ", string(body))
-
-		response := "HTTP/1.1 200 OK \r\n" +
-			"Content-Type: text/plain\r\n" +
-			fmt.Sprintf("Content-Length: %d\r\n", len(body)) +
-			"\r\n" +
-			string(body)
-
-		writeResponse(conn, response)
-		return
 	}
+	fmt.Println("Body: ", string(body))
 
 	if method == "GET" {
 		switch {
@@ -119,6 +103,13 @@ func handleConnection(conn net.Conn) {
 			handleGoodbye(conn)
 		default:
 			handleNotFound(conn)
+		}
+	} else if method == "POST" {
+		contentType, ok := headers["Content-Type"]
+		if ok && strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+			handleFormDataPost(conn, body)
+		} else {
+			handleUnsupportedMediaType(conn)
 		}
 	} else {
 		handleMethodNotAllowed(conn)
@@ -144,6 +135,37 @@ func handleGoodbye(conn net.Conn) {
 	writeResponse(conn, response)
 }
 
+func handleFormDataPost(conn net.Conn, body []byte) {
+	formData, err := url.ParseQuery(string(body))
+	if err != nil {
+		log.Println("Failed to parse form data: ", err)
+		handleBadRequest(conn, "Bad Request")
+		return
+	}
+
+	fmt.Println("Parsed Form Data: ")
+	for key, values := range formData {
+		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
+	}
+
+	response := "HTTP/1.1 200 OK\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: %d\r\n" +
+		"\r\n" +
+		"Form Data Received Sucessfully!"
+
+	response = fmt.Sprintf(response, len("Form Data Receieved Sucessfully!"))
+	writeResponse(conn, response)
+}
+
+func writeResponse(conn net.Conn, response string) {
+	_, err := conn.Write([]byte(response))
+	if err != nil {
+		log.Println("Failed to write response: ", err)
+		return
+	}
+}
+
 func handleNotFound(conn net.Conn) {
 	response := "HTTP/1.1 404 Not Found\r\n" +
 		"Content-Type: text/plain\r\n" +
@@ -162,14 +184,6 @@ func handleMethodNotAllowed(conn net.Conn) {
 	writeResponse(conn, response)
 }
 
-func writeResponse(conn net.Conn, response string) {
-	_, err := conn.Write([]byte(response))
-	if err != nil {
-		log.Println("Failed to write response: ", err)
-		return
-	}
-}
-
 func handleBadRequest(conn net.Conn, message string) {
 	response := "HTTP/1.1 400 Bad Request\r\n" +
 		"Content-Type: text/plain\r\n" +
@@ -185,5 +199,14 @@ func handleInternalServerError(conn net.Conn) {
 		"Content-Length: 21\r\n" +
 		"\r\n" +
 		"Internal Server Error"
+	writeResponse(conn, response)
+}
+
+func handleUnsupportedMediaType(conn net.Conn) {
+	response := "HTTP/1.1 415 Unsupported Media Type\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Content-Length: 25\r\n" +
+		"\r\n" +
+		"415 Unsupported Media Type"
 	writeResponse(conn, response)
 }
