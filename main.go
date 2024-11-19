@@ -131,15 +131,14 @@ func handleGoodbye(conn net.Conn, headers map[string]string, queryParams url.Val
 }
 
 func handleSearch(conn net.Conn, headers map[string]string, queryParams url.Values, body []byte) {
-	name := queryParams.Get("name")
-	city := queryParams.Get("city")
-
-	if name != "" && city != "" {
-		result := fmt.Sprintf("Searched for %s from %s", name, city)
-		writeResponse(conn, httpstatus.OK, "text/plain", result)
-	} else {
-		handleBadRequest(conn)
+	requiredKeys := []string{"name", "city"}
+	params, err := validateQueryParams(queryParams, requiredKeys)
+	if err != nil {
+		writeResponse(conn, httpstatus.BadRequest, "text/plain", err.Error())
+		return
 	}
+	result := fmt.Sprintf("Searched for %s from %s", params["name"], params["city"])
+	writeResponse(conn, httpstatus.OK, "text/plain", result)
 }
 
 func handleFormDataPost(conn net.Conn, headers map[string]string, queryParams url.Values, body []byte) {
@@ -193,4 +192,16 @@ func writeResponse(conn net.Conn, statusCode, contentType, message string) {
 		log.Println("Failed to write response: ", err)
 		return
 	}
+}
+
+func validateQueryParams(queryParams url.Values, requiredKeys []string) (map[string]string, error) {
+	validatedParams := make(map[string]string)
+	for _, key := range requiredKeys {
+		value := queryParams.Get(key)
+		if value == "" {
+			return nil, fmt.Errorf("Missing required query parameter: '%s'", key)
+		}
+		validatedParams[key] = value
+	}
+	return validatedParams, nil
 }
