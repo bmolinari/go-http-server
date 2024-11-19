@@ -11,8 +11,22 @@ import (
 	"github.com/bmolinari/go-http-server/httpstatus"
 )
 
+var router = map[string]map[string]func(net.Conn, map[string]string, []byte){}
+
 func main() {
+	registerRoute("GET", "/hello", handleHello)
+	registerRoute("GET", "/goodbye", handleGoodbye)
+	registerRoute("POST", "/form-data", handleFormDataPost)
+	registerRoute("POST", "/json", handleJsonPost)
+
 	serverListen()
+}
+
+func registerRoute(method, path string, handler func(net.Conn, map[string]string, []byte)) {
+	if router[method] == nil {
+		router[method] = make(map[string]func(net.Conn, map[string]string, []byte))
+	}
+	router[method][path] = handler
 }
 
 func serverListen() {
@@ -97,39 +111,24 @@ func handleConnection(conn net.Conn) {
 	}
 	fmt.Println("Body: ", string(body))
 
-	if method == "GET" {
-		switch {
-		case path == "/hello":
-			handleHello(conn)
-		case path == "/goodbye":
-			handleGoodbye(conn)
-		default:
-			handleNotFound(conn)
+	if routes, ok := router[method]; ok {
+		if handler, ok := routes[path]; ok {
+			handler(conn, headers, body)
+			return
 		}
-	} else if method == "POST" {
-		contentType := headers["Content-Type"]
-		if contentType == "application/x-www-form-urlencoded" {
-			handleFormDataPost(conn, body)
-		} else if contentType == "application/json" {
-			handleJsonPost(conn, body)
-		} else {
-			handleUnsupportedMediaType(conn)
-		}
-	} else {
-		handleMethodNotAllowed(conn)
 	}
-
+	handleNotFound(conn)
 }
 
-func handleHello(conn net.Conn) {
+func handleHello(conn net.Conn, headers map[string]string, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Hello, World!")
 }
 
-func handleGoodbye(conn net.Conn) {
+func handleGoodbye(conn net.Conn, headers map[string]string, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Goodbye!")
 }
 
-func handleFormDataPost(conn net.Conn, body []byte) {
+func handleFormDataPost(conn net.Conn, headers map[string]string, body []byte) {
 	formData, err := url.ParseQuery(string(body))
 	if err != nil {
 		log.Println("Failed to parse form data: ", err)
@@ -145,7 +144,7 @@ func handleFormDataPost(conn net.Conn, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Form Data Received Sucessfully!")
 }
 
-func handleJsonPost(conn net.Conn, body []byte) {
+func handleJsonPost(conn net.Conn, headers map[string]string, body []byte) {
 	fmt.Println("-JSON Body")
 	fmt.Println(string(body))
 	writeResponse(conn, httpstatus.OK, "text/plain", "JSON Data Receieved Sucessfully!")
