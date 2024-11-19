@@ -11,20 +11,21 @@ import (
 	"github.com/bmolinari/go-http-server/httpstatus"
 )
 
-var router = map[string]map[string]func(net.Conn, map[string]string, []byte){}
+var router = map[string]map[string]func(net.Conn, map[string]string, map[string][]string, []byte){}
 
 func main() {
 	registerRoute("GET", "/hello", handleHello)
 	registerRoute("GET", "/goodbye", handleGoodbye)
+	registerRoute("GET", "/search", handleSearch)
 	registerRoute("POST", "/form-data", handleFormDataPost)
 	registerRoute("POST", "/json", handleJsonPost)
 
 	serverListen()
 }
 
-func registerRoute(method, path string, handler func(net.Conn, map[string]string, []byte)) {
+func registerRoute(method, path string, handler func(net.Conn, map[string]string, map[string][]string, []byte)) {
 	if router[method] == nil {
-		router[method] = make(map[string]func(net.Conn, map[string]string, []byte))
+		router[method] = make(map[string]func(net.Conn, map[string]string, map[string][]string, []byte))
 	}
 	router[method][path] = handler
 }
@@ -73,6 +74,7 @@ func handleConnection(conn net.Conn) {
 	}
 	path = parsedUrl.Path
 	fmt.Println("Path: ", path)
+	queryParams := parsedUrl.Query()
 
 	headers := make(map[string]string)
 	for {
@@ -113,22 +115,30 @@ func handleConnection(conn net.Conn) {
 
 	if routes, ok := router[method]; ok {
 		if handler, ok := routes[path]; ok {
-			handler(conn, headers, body)
+			handler(conn, headers, queryParams, body)
 			return
 		}
 	}
 	handleNotFound(conn)
 }
 
-func handleHello(conn net.Conn, headers map[string]string, body []byte) {
+func handleHello(conn net.Conn, headers map[string]string, queryParams map[string][]string, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Hello, World!")
 }
 
-func handleGoodbye(conn net.Conn, headers map[string]string, body []byte) {
+func handleGoodbye(conn net.Conn, headers map[string]string, queryParams map[string][]string, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Goodbye!")
 }
 
-func handleFormDataPost(conn net.Conn, headers map[string]string, body []byte) {
+func handleSearch(conn net.Conn, headers map[string]string, queryParams map[string][]string, body []byte) {
+	fmt.Println("-Query Parameters-")
+	for key, values := range queryParams {
+		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
+	}
+	writeResponse(conn, httpstatus.OK, "text/plain", "Search complete!")
+}
+
+func handleFormDataPost(conn net.Conn, headers map[string]string, queryParams map[string][]string, body []byte) {
 	formData, err := url.ParseQuery(string(body))
 	if err != nil {
 		log.Println("Failed to parse form data: ", err)
@@ -144,7 +154,7 @@ func handleFormDataPost(conn net.Conn, headers map[string]string, body []byte) {
 	writeResponse(conn, httpstatus.OK, "text/plain", "Form Data Received Sucessfully!")
 }
 
-func handleJsonPost(conn net.Conn, headers map[string]string, body []byte) {
+func handleJsonPost(conn net.Conn, headers map[string]string, queryParams map[string][]string, body []byte) {
 	fmt.Println("-JSON Body")
 	fmt.Println(string(body))
 	writeResponse(conn, httpstatus.OK, "text/plain", "JSON Data Receieved Sucessfully!")
