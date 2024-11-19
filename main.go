@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"github.com/bmolinari/go-http-server/httpstatus"
 )
 
 func main() {
@@ -120,28 +122,18 @@ func handleConnection(conn net.Conn) {
 }
 
 func handleHello(conn net.Conn) {
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello, World!"
-	writeResponse(conn, response)
+	writeResponse(conn, httpstatus.OK, "text/plain", "Hello, World!")
 }
 
 func handleGoodbye(conn net.Conn) {
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 8\r\n" +
-		"\r\n" +
-		"Goodbye!"
-	writeResponse(conn, response)
+	writeResponse(conn, httpstatus.OK, "text/plain", "Goodbye!")
 }
 
 func handleFormDataPost(conn net.Conn, body []byte) {
 	formData, err := url.ParseQuery(string(body))
 	if err != nil {
 		log.Println("Failed to parse form data: ", err)
-		handleBadRequest(conn, "Bad Request")
+		handleBadRequest(conn)
 		return
 	}
 
@@ -150,75 +142,42 @@ func handleFormDataPost(conn net.Conn, body []byte) {
 		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
 	}
 
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: %d\r\n" +
-		"\r\n" +
-		"Form Data Received Sucessfully!"
-
-	response = fmt.Sprintf(response, len("Form Data Receieved Sucessfully!"))
-	writeResponse(conn, response)
+	writeResponse(conn, httpstatus.OK, "text/plain", "Form Data Received Sucessfully!")
 }
 
 func handleJsonPost(conn net.Conn, body []byte) {
 	fmt.Println("-JSON Body")
 	fmt.Println(string(body))
-
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: %d\r\n" +
-		"\r\n" +
-		"JSON Data Received Sucessfully!"
-
-	response = fmt.Sprintf(response, len("JSON Data Receieved Sucessfully!"))
-	writeResponse(conn, response)
+	writeResponse(conn, httpstatus.OK, "text/plain", "JSON Data Receieved Sucessfully!")
 }
 
-func writeResponse(conn net.Conn, response string) {
+func handleNotFound(conn net.Conn) {
+	writeResponse(conn, httpstatus.NotFound, "text/plain", "404 Not Found")
+}
+
+func handleMethodNotAllowed(conn net.Conn) {
+	writeResponse(conn, httpstatus.NotFound, "text/plain", "405 Method Not Allowed")
+}
+
+func handleBadRequest(conn net.Conn) {
+	writeResponse(conn, httpstatus.BadRequest, "text/plain", "400 Bad Request")
+}
+
+func handleInternalServerError(conn net.Conn) {
+	writeResponse(conn, httpstatus.InternalServerError, "text/plain", "Internal Server Error")
+}
+
+func handleUnsupportedMediaType(conn net.Conn) {
+	writeResponse(conn, httpstatus.UnsupportedMediaType, "text/plain", "415 Unsupported Media Type")
+}
+
+func writeResponse(conn net.Conn, statusCode, contentType, message string) {
+	contentLength := len(message)
+	response := fmt.Sprintf("HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s",
+		statusCode, contentType, contentLength, message)
 	_, err := conn.Write([]byte(response))
 	if err != nil {
 		log.Println("Failed to write response: ", err)
 		return
 	}
-}
-
-func handleNotFound(conn net.Conn) {
-	response := "HTTP/1.1 404 Not Found\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 14\r\n" +
-		"\r\n" +
-		"404 Not Found"
-	writeResponse(conn, response)
-}
-
-func handleMethodNotAllowed(conn net.Conn) {
-	response := "HTTP/1.1 405 Method Not Allowed\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 24\r\n" +
-		"\r\n" +
-		"405 Method Not Allowed"
-	writeResponse(conn, response)
-}
-
-func handleBadRequest(conn net.Conn, message string) {
-	response := fmt.Sprintf("HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(message), message)
-	writeResponse(conn, response)
-}
-
-func handleInternalServerError(conn net.Conn) {
-	response := "HTTP/1.1 500 Internal Server Error\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 21\r\n" +
-		"\r\n" +
-		"Internal Server Error"
-	writeResponse(conn, response)
-}
-
-func handleUnsupportedMediaType(conn net.Conn) {
-	response := "HTTP/1.1 415 Unsupported Media Type\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 25\r\n" +
-		"\r\n" +
-		"415 Unsupported Media Type"
-	writeResponse(conn, response)
 }
